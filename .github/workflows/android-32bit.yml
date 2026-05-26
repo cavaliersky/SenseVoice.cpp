@@ -1,7 +1,7 @@
 name: Build-SenseVoice-32bit-ONLY
 
 on:
-  workflow_dispatch: # 只允许手动触发
+  workflow_dispatch: 
 
 jobs:
   android-build:
@@ -17,7 +17,7 @@ jobs:
         uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
-          ndk-version: r25c # 使用最兼容 Android 9 的版本
+          ndk-version: r25c 
           add-to-path: true
 
       - name: 3. 安装必备工具
@@ -37,22 +37,23 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
 
-      - name: 5. 智能提取可执行程序 (修复路径问题)
+      - name: 5. 智能提取可执行程序 (修复 libomp 依赖)
         run: |
-          # 1. 在当前文件夹下创建输出目录（不再使用 ../ 导致找不到）
           mkdir -p release_output
           
-          # 2. 搜索并提取 build 目录下所有没有后缀名的可执行文件 (避开 .o 等临时文件)
+          # 提取主程序和自己编译的 .so
           find build -type f -executable ! -name "*.*" -exec cp {} release_output/ \; || true
-          
-          # 3. 把可能生成的动态链接库 (.so) 也提取出来
           find build -type f -name "*.so" -exec cp {} release_output/ \; || true
           
-          echo "==== 本次成功提取的干净文件如下 ===="
+          # 【关键新增】从官方 NDK 里面强行找出 32 位专用的 libomp.so 并打包
+          NDK_PATH="${{ steps.setup-ndk.outputs.ndk-path }}"
+          find "$NDK_PATH" -type f -name "libomp.so" | grep "arm-linux-androideabi" | head -n 1 | xargs -I {} cp {} release_output/
+          
+          echo "==== 本次提取的干净文件如下 ===="
           ls -lh release_output/
 
       - name: 6. 打包供下载
         uses: actions/upload-artifact@v4
         with:
           name: SenseVoice-Android32-Termux
-          path: release_output/ # 这次路径完全正确，绝对能下载到
+          path: release_output/
