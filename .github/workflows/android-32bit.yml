@@ -1,0 +1,56 @@
+name: Build SenseVoice for Android 32-bit (Termux)
+
+on:
+  workflow_dispatch: # 手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+        with:
+          # 使用你指定的仓库
+          repository: 'cavaliersky/SenseVoice.cpp'
+          submodules: recursive
+
+      - name: 2. Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r25c # r25c 对旧版 Android 9 兼容性极佳
+          add-to-path: true
+
+      - name: 3. Install Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ make
+
+      - name: 4. Configure and Build
+        run: |
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=armeabi-v7a \
+            -DANDROID_PLATFORM=android-28 \
+            -DANDROID_STL=c++_static \
+            -DANDROID_ARM_NEON=ON \
+            -DCMAKE_BUILD_TYPE=Release
+          
+          make -j$(nproc)
+
+      - name: 5. Check Output Files
+        run: |
+          ls -R build/
+          # 这一步是为了确认生成的可执行文件名，通常是 sense-voice-cpp 或类似
+
+      - name: 6. Upload Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: SenseVoice-Android-32bit
+          # 自动匹配 build 文件夹下的可执行文件和库
+          path: |
+            build/sense-voice*
+            build/*.so
+            build/*.a
