@@ -37,23 +37,25 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
 
-      - name: 5. 智能提取文件 (彻底修复软链接跳过问题)
+      - name: 5. 智能提取文件 (终极修正搜索路径)
         run: |
           mkdir -p release_output
           
-          # 1. 提取主程序和动态库（加入了 -L，强制剥开快捷方式复制真文件）
+          # 1. 提取主程序和自己编译的 .so 库
           find build -type f -executable ! -name "*.*" -exec cp -L {} release_output/ \; || true
           find build -name "*.so" -exec cp -L {} release_output/ \; || true
           
-          # 2. 专门提取 32位 libomp.so (去掉 -type f 的限制，并追踪源文件)
+          # 2. 深入 NDK 提取 32位的 libomp.so（修复了文件夹匹配名字）
           NDK_PATH="${{ steps.setup-ndk.outputs.ndk-path }}"
-          OMP_FILE=$(find "$NDK_PATH" -name "libomp.so" | grep "arm-linux-androideabi" | head -n 1)
+          
+          # 搜索所有 libomp.so，精确提取路径中带 /arm/ 的（这是 32 位的专属名字）
+          OMP_FILE=$(find "$NDK_PATH" -name "libomp.so" | grep "/arm/" | head -n 1)
           
           if [ -n "$OMP_FILE" ]; then
-            echo "成功找到 libomp.so: $OMP_FILE"
+            echo "成功找到真正的 libomp.so: $OMP_FILE"
             cp -L "$OMP_FILE" release_output/
           else
-            echo "【错误】没有找到 libomp.so"
+            echo "【致命错误】还是没找到！"
           fi
           
           echo "==== 本次将要打包给你的文件 ===="
