@@ -1,33 +1,31 @@
-name: Build SenseVoice for Android 32-bit (Termux)
+name: Build-SenseVoice-32bit-ONLY
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch: # 只允许手动触发，防止你一改代码就疯狂自动编译其他版本
 
 jobs:
-  build:
+  android-build:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: 1. Checkout Code
+      - name: 1. 拉取代码 (指定 cavaliersky 仓库)
         uses: actions/checkout@v4
         with:
-          # 使用你指定的仓库
           repository: 'cavaliersky/SenseVoice.cpp'
           submodules: recursive
 
-      - name: 2. Setup Android NDK
+      - name: 2. 安装 NDK (指定兼容 Android 9 的 r25c 版本)
         uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
-          ndk-version: r25c # r25c 对旧版 Android 9 兼容性极佳
+          ndk-version: r25c
           add-to-path: true
 
-      - name: 3. Install Build Tools
+      - name: 3. 安装必要的编译工具
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake g++ make
 
-      - name: 4. Configure and Build
+      - name: 4. 执行 32 位 Android 交叉编译
         run: |
           mkdir build && cd build
           cmake .. \
@@ -40,17 +38,22 @@ jobs:
           
           make -j$(nproc)
 
-      - name: 5. Check Output Files
+      - name: 5. 提取真正的可执行程序 (过滤掉所有的垃圾临时文件)
         run: |
-          ls -R build/
-          # 这一步是为了确认生成的可执行文件名，通常是 sense-voice-cpp 或类似
+          # 创建一个干净的输出文件夹
+          mkdir -p ../release_output
+          
+          # 在 build 目录里搜索名为 sense-voice-main 的文件并复制出来
+          find . -type f -name "sense-voice-main" -exec cp {} ../release_output/ \;
+          
+          # 把可能依赖的动态库 (.so) 也找出来复制过去
+          find . -type f -name "*.so" -exec cp {} ../release_output/ \;
+          
+          echo "==== 提取完毕，即将打包以下文件 ===="
+          ls -lh ../release_output/
 
-      - name: 6. Upload Executable
+      - name: 6. 上传最终结果 (供你下载)
         uses: actions/upload-artifact@v4
         with:
-          name: SenseVoice-Android-32bit
-          # 自动匹配 build 文件夹下的可执行文件和库
-          path: |
-            build/sense-voice*
-            build/*.so
-            build/*.a
+          name: SenseVoice-Android32-Termux
+          path: release_output/ # 只打包刚才挑出来的干净文件
