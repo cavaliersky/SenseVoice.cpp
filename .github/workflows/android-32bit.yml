@@ -1,31 +1,31 @@
 name: Build-SenseVoice-32bit-ONLY
 
 on:
-  workflow_dispatch: # 只允许手动触发，防止你一改代码就疯狂自动编译其他版本
+  workflow_dispatch: # 只允许手动触发
 
 jobs:
   android-build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 拉取代码 (指定 cavaliersky 仓库)
+      - name: 1. 拉取代码
         uses: actions/checkout@v4
         with:
           repository: 'cavaliersky/SenseVoice.cpp'
           submodules: recursive
 
-      - name: 2. 安装 NDK (指定兼容 Android 9 的 r25c 版本)
+      - name: 2. 安装 NDK
         uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
-          ndk-version: r25c
+          ndk-version: r25c # 使用最兼容 Android 9 的版本
           add-to-path: true
 
-      - name: 3. 安装必要的编译工具
+      - name: 3. 安装必备工具
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake g++ make
 
-      - name: 4. 执行 32 位 Android 交叉编译
+      - name: 4. 执行交叉编译
         run: |
           mkdir build && cd build
           cmake .. \
@@ -35,25 +35,24 @@ jobs:
             -DANDROID_STL=c++_static \
             -DANDROID_ARM_NEON=ON \
             -DCMAKE_BUILD_TYPE=Release
-          
           make -j$(nproc)
 
-      - name: 5. 提取真正的可执行程序 (过滤掉所有的垃圾临时文件)
+      - name: 5. 智能提取可执行程序 (修复路径问题)
         run: |
-          # 创建一个干净的输出文件夹
-          mkdir -p ../release_output
+          # 1. 在当前文件夹下创建输出目录（不再使用 ../ 导致找不到）
+          mkdir -p release_output
           
-          # 在 build 目录里搜索名为 sense-voice-main 的文件并复制出来
-          find . -type f -name "sense-voice-main" -exec cp {} ../release_output/ \;
+          # 2. 搜索并提取 build 目录下所有没有后缀名的可执行文件 (避开 .o 等临时文件)
+          find build -type f -executable ! -name "*.*" -exec cp {} release_output/ \; || true
           
-          # 把可能依赖的动态库 (.so) 也找出来复制过去
-          find . -type f -name "*.so" -exec cp {} ../release_output/ \;
+          # 3. 把可能生成的动态链接库 (.so) 也提取出来
+          find build -type f -name "*.so" -exec cp {} release_output/ \; || true
           
-          echo "==== 提取完毕，即将打包以下文件 ===="
-          ls -lh ../release_output/
+          echo "==== 本次成功提取的干净文件如下 ===="
+          ls -lh release_output/
 
-      - name: 6. 上传最终结果 (供你下载)
+      - name: 6. 打包供下载
         uses: actions/upload-artifact@v4
         with:
           name: SenseVoice-Android32-Termux
-          path: release_output/ # 只打包刚才挑出来的干净文件
+          path: release_output/ # 这次路径完全正确，绝对能下载到
