@@ -1,0 +1,53 @@
+name: Build SenseVoice for Android 32-bit (Termux)
+
+on:
+  workflow_dispatch: # 允许你在 GitHub 网页上直接点击按钮手动触发编译
+
+jobs:
+  build-for-tvbox:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout original SenseVoice.cpp repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'lovemefan/SenseVoice.cpp' # 直接拉取作者的源码
+          submodules: recursive                  # 确保拉取所有的子模块依赖
+
+      - name: 2. Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26b                      # 使用稳定的 NDK 版本
+
+      - name: 3. Configure CMake for Android 32-bit
+        run: |
+          mkdir build && cd build
+          # 使用 Android NDK 的工具链进行交叉编译
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=armeabi-v7a \
+            -DANDROID_PLATFORM=android-28 \
+            -DANDROID_STL=c++_static \
+            -DANDROID_ARM_NEON=ON \
+            -DCMAKE_BUILD_TYPE=Release
+            
+            # 参数解释：
+            # armeabi-v7a: 对应 32 位 ARM 系统
+            # android-28: 对应 Android 9 的 API 级别
+            # c++_static: 静态链接 C++ 库，防止在 Termux 中因找不到动态库而报错
+            # ARM_NEON=ON: 强制开启 A55 处理器的硬件加速，大幅提升语音识别速度
+
+      - name: 4. Compile Project
+        run: |
+          cd build
+          make -j$(nproc) # 使用所有 CPU 核心满载编译
+
+      - name: 5. Upload Executable to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SenseVoice-Android-32bit-Executable
+          path: |
+            build/sense-voice
+            build/**/*.so
+            build/**/*.a
+          # 把编译好的核心可执行文件打包上传，方便你下载
