@@ -1,0 +1,55 @@
+name: Build-SenseVoice-Armbian-64bit
+
+on:
+  workflow_dispatch: # 允许你在 GitHub 网页端手动点击运行
+
+jobs:
+  build-armbian-64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. 拉取代码
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 2. 安装 QEMU 模拟器 (用于跨平台编译)
+        uses: docker/setup-qemu-action@v3
+
+      - name: 3. 在 ARM64 环境下编译代码
+        run: |
+          # 启动一个虚拟的 ARM64 Ubuntu 系统来进行编译，最大程度保证兼容性
+          docker run --platform linux/arm64 --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ubuntu:22.04 /bin/sh -c '
+            set -e
+            apt-get update
+            # 安装必备的编译工具
+            apt-get install -y build-essential git cmake libsdl2-dev
+            
+            git config --global --add safe.directory /workspace
+            git config --global --add safe.directory /workspace/sense-voice/csrc/third-party/ggml
+            
+            # 创建编译目录并开始编译
+            mkdir build && cd build
+            cmake .. -DGGML_NATIVE=OFF -DCMAKE_BUILD_TYPE=Release
+            make -j$(nproc)
+            
+            # 创建专门的输出目录
+            mkdir -p /workspace/release_output
+            
+            # 提取编译出来的可执行文件和库文件
+            find . -type f -executable -not -name "*.o" -not -name "*.cmake" -exec cp -L {} /workspace/release_output/ \; || true
+            find . -name "*.so*" -exec cp -L {} /workspace/release_output/ \; || true
+            '
+
+      - name: 4. 展示打包的文件
+        run: |
+          echo "==== 本次将要打包给你的文件 ===="
+          ls -lh release_output/
+
+      - name: 5. 打包供下载
+        uses: actions/upload-artifact@v4
+        with:
+          name: SenseVoice-Armbian-64bit
+          path: release_output/
