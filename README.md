@@ -1,6 +1,6 @@
 # SenseVoice.cpp
 
-「简体中文」|「[English](./README-EN.md)」
+「简体中文」|「[English](./README-EN.md)」cpp
 
 [SenseVoice](https://github.com/FunAudioLLM/SenseVoice)是具有音频理解能力的音频基础模型， 
 包括语音识别（ASR）、语种识别（LID）、语音情感识别（SER）和声学事件分类（AEC）或声学事件检测（AED）。
